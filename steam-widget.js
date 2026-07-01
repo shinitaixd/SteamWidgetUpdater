@@ -168,14 +168,14 @@ async function updateDiscordWidget(widget) {
     log("Updating Discord widget...");
 
     const response = await fetch(
-        `https://placeholder.com/api/v9/applications/${APPLICATION_ID}/users/${DISCORD_USER_ID}/identities/0/profile`,
+        `https://discord.com/api/v9/applications/{discordApplicationId}/users/{discordUserId}/identities/0/profile`,
         {
             method: "PATCH",
             headers: {
                 Authorization: `Bot ${BOT_TOKEN}`,
                 "Content-Type": "application/json",
                 "User-Agent":
-                    "Bot (https://github.com/placeholder/api-docs, 1.0.0)"
+                    "DiscordBot (https://github.com/discord/discord-api-docs, 1.0.0)"
             },
             body: JSON.stringify(widget)
         }

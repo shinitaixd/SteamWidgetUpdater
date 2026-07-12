@@ -1,9 +1,5 @@
-<center>
-
-# Steam Widget Updater
-#### I'd appreciate it if you could give my project a star :) ⭐
-
-</center>
+<h1 align=center>Steam Widget Updater<br><img src="logo.png" width="110px"></h1>
+<h3 align=center>I'd appreciate it if you could give my project a star :) ⭐</h3>
 
 A GitHub Actions-based Steam stats fetcher that automatically updates a Discord application profile widget.
 

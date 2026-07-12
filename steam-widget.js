@@ -3,390 +3,312 @@
 
 // Environment Variables
 
-const {
-    STEAM_API_KEY,
-    STEAM_ID,
-    BOT_TOKEN,
-    APPLICATION_ID,
-    DISCORD_USER_ID
-} = process.env;
+const { STEAM_API_KEY, STEAM_ID, BOT_TOKEN, APPLICATION_ID, DISCORD_USER_ID } =
+  process.env;
 
 // Validate Secrets
 
 const requiredSecrets = [
-    "STEAM_API_KEY",
-    "STEAM_ID",
-    "BOT_TOKEN",
-    "APPLICATION_ID",
-    "DISCORD_USER_ID"
+  "STEAM_API_KEY",
+  "STEAM_ID",
+  "BOT_TOKEN",
+  "APPLICATION_ID",
+  "DISCORD_USER_ID",
 ];
 
 for (const secret of requiredSecrets) {
-    if (!process.env[secret]) {
-        throw new Error(`Missing GitHub Secret: ${secret}`);
-    }
+  if (!process.env[secret]) {
+    throw new Error(`Missing GitHub Secret: ${secret}`);
+  }
 }
 
 // Logging
 
 function log(message) {
-    console.log(`[${new Date().toISOString()}] ${message}`);
+  console.log(`[${new Date().toISOString()}] ${message}`);
 }
 
 // Delay Helper
 
 function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Fetch JSON with Retries
 
 async function steam(url, retries = 3) {
+  let lastError;
 
-    let lastError;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(url);
 
-    for (let attempt = 1; attempt <= retries; attempt++) {
+      if (!res.ok) {
+        const text = await res.text();
 
-        try {
+        throw new Error(`Steam API ${res.status}\n${text}`);
+      }
 
-            const res = await fetch(url);
+      return await res.json();
+    } catch (err) {
+      lastError = err;
 
-            if (!res.ok) {
+      log(`Steam request failed (${attempt}/${retries})`);
 
-                const text = await res.text();
-
-                throw new Error(
-                    `Steam API ${res.status}\n${text}`
-                );
-
-            }
-
-            return await res.json();
-
-        } catch (err) {
-
-            lastError = err;
-
-            log(
-                `Steam request failed (${attempt}/${retries})`
-            );
-
-            if (attempt !== retries) {
-                await delay(1500);
-            }
-
-        }
-
+      if (attempt !== retries) {
+        await delay(1500);
+      }
     }
+  }
 
-    throw lastError;
-
+  throw lastError;
 }
 
 // Account Age
 
 async function getProfileAge() {
+  try {
+    const response = await fetch(
+      `https://steamcommunity.com/profiles/${STEAM_ID}/?xml=1`,
+    );
 
-    try {
-
-        const response = await fetch(
-            `https://steamcommunity.com/profiles/${STEAM_ID}/?xml=1`
-        );
-
-        if (!response.ok) {
-            return "Unknown";
-        }
-
-        const xml = await response.text();
-
-        const match = xml.match(
-            /<memberSince>(.*?)<\/memberSince>/
-        );
-
-        if (!match) {
-            return "Unknown";
-        }
-
-        const created = new Date(match[1]);
-
-        if (isNaN(created)) {
-            return "Unknown";
-        }
-
-        const now = new Date();
-
-        let years =
-            now.getFullYear() -
-            created.getFullYear();
-
-        const monthDiff =
-            now.getMonth() -
-            created.getMonth();
-
-        if (
-            monthDiff < 0 ||
-            (
-                monthDiff === 0 &&
-                now.getDate() < created.getDate()
-            )
-        ) {
-            years--;
-        }
-
-        return `${years} Years`;
-
+    if (!response.ok) {
+      return "Unknown";
     }
 
-    catch {
+    const xml = await response.text();
 
-        return "Unknown";
+    const match = xml.match(/<memberSince>(.*?)<\/memberSince>/);
 
+    if (!match) {
+      return "Unknown";
     }
 
+    const created = new Date(match[1]);
+
+    if (isNaN(created)) {
+      return "Unknown";
+    }
+
+    const now = new Date();
+
+    let years = now.getFullYear() - created.getFullYear();
+
+    const monthDiff = now.getMonth() - created.getMonth();
+
+    if (
+      monthDiff < 0 ||
+      (monthDiff === 0 && now.getDate() < created.getDate())
+    ) {
+      years--;
+    }
+
+    return `${years} Years`;
+  } catch {
+    return "Unknown";
+  }
 }
 
 // Discord Widget Updater
 
 async function updateDiscordWidget(widget) {
+  log("Updating Discord widget...");
 
-    log("Updating Discord widget...");
+  const response = await fetch(
+    `https://discord.com/api/v9/applications/${APPLICATION_ID}/users/${DISCORD_USER_ID}/identities/0/profile`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bot ${BOT_TOKEN}`,
+        "Content-Type": "application/json",
+        "User-Agent":
+          "DiscordBot (https://github.com/discord/discord-api-docs, 1.0.0)",
+      },
+      body: JSON.stringify(widget),
+    },
+  );
 
-    const response = await fetch(
-        `https://discord.com/api/v9/applications/${APPLICATION_ID}/users/${DISCORD_USER_ID}/identities/0/profile`,
-        {
-            method: "PATCH",
-            headers: {
-                Authorization: `Bot ${BOT_TOKEN}`,
-                "Content-Type": "application/json",
-                "User-Agent":
-                    "DiscordBot (https://github.com/discord/discord-api-docs, 1.0.0)"
-            },
-            body: JSON.stringify(widget)
-        }
-    );
+  if (!response.ok) {
+    const text = await response.text();
 
-    if (!response.ok) {
+    throw new Error(`Discord API ${response.status}\n${text}`);
+  }
 
-        const text = await response.text();
-
-        throw new Error(
-            `Discord API ${response.status}\n${text}`
-        );
-
-    }
-
-    log("Discord widget updated.");
-
+  log("Discord widget updated.");
 }
 
 // Main
 
 async function main() {
+  log("Fetching Steam data...");
 
-    log("Fetching Steam data...");
+  const [summary, owned, recent, badges, friendsRaw, profileAge] =
+    await Promise.all([
+      steam(
+        `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${STEAM_API_KEY}&steamids=${STEAM_ID}`,
+      ),
 
-    const [
-        summary,
-        owned,
-        recent,
-        level,
-        badges,
-        friendsRaw,
-        profileAge
-    ] = await Promise.all([
+      steam(
+        `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}&include_appinfo=1&include_played_free_games=1`,
+      ),
 
-        steam(
-            `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v2/?key=${STEAM_API_KEY}&steamids=${STEAM_ID}`
-        ),
+      steam(
+        `https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v1/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}`,
+      ),
 
-        steam(
-            `https://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}&include_appinfo=1&include_played_free_games=1`
-        ),
+      steam(
+        `https://api.steampowered.com/IPlayerService/GetBadges/v1/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}`,
+      ),
 
-        steam(
-            `https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v1/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}`
-        ),
+      steam(
+        `https://api.steampowered.com/ISteamUser/GetFriendList/v1/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}&relationship=friend`,
+      ),
 
-        steam(
-            `https://api.steampowered.com/IPlayerService/GetSteamLevel/v1/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}`
-        ),
-
-        steam(
-            `https://api.steampowered.com/IPlayerService/GetBadges/v1/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}`
-        ),
-
-        steam(
-            `https://api.steampowered.com/ISteamUser/GetFriendList/v1/?key=${STEAM_API_KEY}&steamid=${STEAM_ID}&relationship=friend`
-        ),
-
-        getProfileAge()
-
+      getProfileAge(),
     ]);
 
-    log("Calculating statistics...");
+  log("Calculating statistics...");
 
-    const player =
-        summary.response.players?.[0];
+  const player = summary.response.players?.[0];
 
-    const games =
-        owned.response.games || [];
+  const games = owned.response.games || [];
 
-    const recentGames =
-        recent.response.games || [];
+  const recentGames = recent.response.games || [];
 
-    // Overall playtime
+  // Overall playtime
 
-    const totalMinutes =
-        games.reduce(
-            (sum, game) =>
-                sum + (game.playtime_forever || 0),
-            0
-        );
+  const totalMinutes = games.reduce(
+    (sum, game) => sum + (game.playtime_forever || 0),
+    0,
+  );
 
-    const totalPlaytimeMs =
-        totalMinutes * 60000;
+  const totalPlaytimeMs = totalMinutes * 60000;
 
-    // Most Played Game
+  // Most Played Game
 
-    let mostPlayed = null;
+  let mostPlayed = null;
 
-    if (games.length > 0) {
+  if (games.length > 0) {
+    mostPlayed = games.reduce((highest, current) => {
+      if ((current.playtime_forever || 0) > (highest.playtime_forever || 0)) {
+        return current;
+      }
 
-        mostPlayed =
-            games.reduce((highest, current) => {
+      return highest;
+    });
+  }
 
-                if (
-                    (current.playtime_forever || 0) >
-                    (highest.playtime_forever || 0)
-                ) {
-                    return current;
-                }
+  // Two Week Playtime
 
-                return highest;
+  const recentMinutes = recentGames.reduce(
+    (sum, game) => sum + (game.playtime_2weeks || 0),
+    0,
+  );
 
-            });
+  const recentPlaytimeMs = recentMinutes * 60000;
 
-    }
+  // Friends Count
 
-    // Two Week Playtime
+  const friendCount = friendsRaw.friendslist?.friends?.length || 0;
 
-    const recentMinutes =
-        recentGames.reduce(
-            (sum, game) =>
-                sum + (game.playtime_2weeks || 0),
-            0
-        );
+  // Badges Count
 
-    const recentPlaytimeMs =
-        recentMinutes * 60000;
+  const badgeCount = badges.response?.badges?.length || 0;
 
-    // Friends Count
+  // Owned Games
 
-    const friendCount =
-        friendsRaw.friendslist?.friends?.length || 0;
+  const ownedGames = games.length;
 
-    // Badges Count
+  // Steam Level (from badges response)
 
-    const badgeCount =
-        badges.response?.badges?.length || 0;
+  const steamLevel = badges.response?.player_level || 0;
 
-    // Owned Games
+  // Console Summary
 
-    const ownedGames =
-        games.length;
+  log("-----------------------------");
+  log(`User: ${player?.personaname}`);
+  log(`Steam Level: ${steamLevel}`);
+  log(`Owned Games: ${ownedGames}`);
+  log(`Friends: ${friendCount}`);
+  log(`Badges: ${badgeCount}`);
+  log(`Profile Age: ${profileAge}`);
+  log(`Most Played: ${mostPlayed?.name ?? "None"}`);
+  log("-----------------------------");
 
-    // Steam Level
+  log("Building widget payload...");
 
-    const steamLevel =
-        level.response.player_level || 0;
+  const widget = {
+    data: {
+      dynamic: [
+        {
+          type: 1,
+          name: "display_name",
+          value: player?.personaname || "Unknown",
+        },
+        {
+          type: 1,
+          name: "most_played",
+          value: mostPlayed?.name || "No Games",
+        },
+        {
+          type: 1,
+          name: "steam_level",
+          value: String(steamLevel),
+        },
+        {
+          type: 3,
+          name: "pfp",
+          value: {
+            url: player?.avatarfull || "",
+          },
+        },
+        {
+          type: 2,
+          name: "playtime",
+          value: totalPlaytimeMs,
+        },
+        {
+          type: 2,
+          name: "owned_games",
+          value: ownedGames,
+        },
+        {
+          type: 2,
+          name: "recent_twoweek",
+          value: recentPlaytimeMs,
+        },
+        {
+          type: 2,
+          name: "friends",
+          value: friendCount,
+        },
+        {
+          type: 2,
+          name: "badge_count",
+          value: badgeCount,
+        },
+        {
+          type: 1,
+          name: "profile_age",
+          value: profileAge,
+        },
+      ],
+    },
+  };
 
-    // Console Summary
+  log("Widget preview:");
+  console.log(JSON.stringify(widget, null, 2));
 
-    log("-----------------------------");
-    log(`User: ${player?.personaname}`);
-    log(`Steam Level: ${steamLevel}`);
-    log(`Owned Games: ${ownedGames}`);
-    log(`Friends: ${friendCount}`);
-    log(`Badges: ${badgeCount}`);
-    log(`Profile Age: ${profileAge}`);
-    log(`Most Played: ${mostPlayed?.name ?? "None"}`);
-    log("-----------------------------");
+  await updateDiscordWidget(widget);
 
-        log("Building widget payload...");
-
-    const widget = {
-        data: {
-            dynamic: [
-                {
-                    type: 1,
-                    name: "display_name",
-                    value: player?.personaname || "Unknown"
-                },
-                {
-                    type: 1,
-                    name: "most_played",
-                    value: mostPlayed?.name || "No Games"
-                },
-                {
-                    type: 1,
-                    name: "steam_level",
-                    value: String(steamLevel)
-                },
-                {
-                    type: 3,
-                    name: "pfp",
-                    value: {
-                        url: player?.avatarfull || ""
-                    }
-                },
-                {
-                    type: 2,
-                    name: "playtime",
-                    value: totalPlaytimeMs
-                },
-                {
-                    type: 2,
-                    name: "owned_games",
-                    value: ownedGames
-                },
-                {
-                    type: 2,
-                    name: "recent_twoweek",
-                    value: recentPlaytimeMs
-                },
-                {
-                    type: 2,
-                    name: "friends",
-                    value: friendCount
-                },
-                {
-                    type: 2,
-                    name: "badge_count",
-                    value: badgeCount
-                },
-                {
-                    type: 1,
-                    name: "profile_age",
-                    value: profileAge
-                }
-            ]
-        }
-    };
-
-    log("Widget preview:");
-    console.log(JSON.stringify(widget, null, 2));
-
-    await updateDiscordWidget(widget);
-
-    log("Steam widget update completed successfully.");
-
+  log("Steam widget update completed successfully.");
 }
 
 main()
-    .then(() => {
-        log("Finished successfully.");
-    })
-    .catch(err => {
-        console.error(err);
-        process.exit(1);
-    });
+  .then(() => {
+    log("Finished successfully.");
+  })
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

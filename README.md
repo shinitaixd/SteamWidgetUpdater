@@ -2,19 +2,16 @@
 
 A GitHub Actions-based Steam stats fetcher that automatically updates a Discord application profile widget.
 
-Runs every 3 days or manually via workflow dispatch.
+Runs daily or manually via workflow dispatch.
+
+### Preview
+<img src="preview.png" width="400px">
 
 ---
 
 ## Importing the Discord Widget
 
-This repository includes a pre-configured widget layout file:
-
-```
-
-widget-layout.json
-
-```
+This repository includes a pre-configured widget layout file: [widget-layout.json](https://github.com/ItsDenji777/SteamWidgetUpdater/blob/main/widget-layout.json)
 
 This file is used only for importing the widget layout into Discord. It is not required for the Node.js script to run.
 
@@ -30,12 +27,7 @@ This file is used only for importing the widget layout into Discord. It is not r
 
 3. Open the widget import window.
 
-4. Open the file in this repository:
-```
-
-steam-widget.json
-
-```
+4. Open the file in this repository: [widget-layout.json](https://github.com/ItsDenji777/SteamWidgetUpdater/blob/main/widget-layout.json)
 
 5. Copy the entire contents of the file.
 
@@ -43,14 +35,11 @@ steam-widget.json
 
 7. Click **Import**.
 
----
-
-### Important Notes
-
-- This file only defines the layout and data bindings.
-- It does NOT contain your Steam or Discord credentials.
-- The Node.js script is responsible for providing live data to this widget.
-- If the widget layout is updated in the future, re-importing may be required.
+> [!IMPORTANT]
+> - This file only defines the layout and data bindings.
+> - It does NOT contain your Steam or Discord credentials.
+> - The Node.js script is responsible for providing live data to this widget.
+> - If the widget layout is updated in the future, re-importing may be required.
 
 
 ---
@@ -74,9 +63,9 @@ cd SteamWidgetUpdater
 
 Go to:
 
-```
+`
 Settings → Secrets and variables → Actions → New repository secret
-```
+`
 
 Add the following:
 
@@ -88,11 +77,10 @@ Add the following:
 | APPLICATION_ID  | Discord application ID |
 | DISCORD_USER_ID | Your Discord user ID   |
 
-Important:
-
-* Do not use quotes
-* Do not use `{}` placeholders
-* Paste raw values only
+>[!IMPORTANT]
+>* Do not use quotes
+>* Do not use `{}` placeholders
+>* Paste raw values only
 
 ---
 
@@ -100,9 +88,9 @@ Important:
 
 Go to:
 
-```
+`
 Actions → Enable workflows
-```
+`
 
 Approve if prompted.
 
@@ -112,24 +100,24 @@ Approve if prompted.
 
 Go to:
 
-```
+`
 Actions → Update Steam Widget → Run workflow
-```
+`
 
-Check logs for:
-
-* Steam data fetched
-* Stats calculated
-* Discord update successful
+>[!TIP]
+> #### Check logs for:
+> * Steam data fetched
+> * Stats calculated
+> * Discord update successful
 
 ---
 
 ## Automatic Updates
 
-Runs every 3 days (UTC):
+Runs every 1 day (UTC):
 
 ```yaml
-0 0 */3 * *
+0 0 */1 * *
 ```
 
 ---
@@ -156,13 +144,12 @@ Each run:
 
 ## Requirements
 
-* Steam profile must be accessible via Steam Web API
-* Valid Steam Web API key
+* Steam profile must be accessible via Steam Web API (Meaning public Friends List and etc.)
+* Valid Steam Web API key (Get one [here!](https://steamcommunity.com/dev/apikey))
 * Discord application with widget support
 * GitHub Actions enabled
 
 ---
-
 ## Common Issues
 
 ### Missing secrets error
@@ -183,11 +170,7 @@ Incorrect APPLICATION_ID or DISCORD_USER_ID.
 * GitHub cron may have delays
 
 ---
-
-## Security
-
-* Never hardcode secrets in code
-* Never commit .env files
-* Always use GitHub Secrets
-
-```
+>[!WARNING]
+>* Never hardcode secrets in code
+>* Never commit .env files
+>* Always use GitHub Secrets
